@@ -31,7 +31,7 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 
-def intrinsic_dim_sample_wise(X, k=5):
+def intrinsic_dim_sample_wise_old(X, k=5):
     neighb = NearestNeighbors(n_neighbors=k + 1).fit(X)
     dist, ind = neighb.kneighbors(X)
     dist = dist[:, 1:]
@@ -45,6 +45,21 @@ def intrinsic_dim_sample_wise(X, k=5):
     return intdim_sample
 
 
+def intrinsic_dim_sample_wise(X, k=5):
+    neighb = NearestNeighbors(n_neighbors=k + 1).fit(X)
+    dist, ind = neighb.kneighbors(X)
+    dist = dist[:, 1:]
+    dist = dist[:, 0:k]
+    print(dist)
+    assert dist.shape == (X.shape[0], k)
+    assert np.all(dist > 0)
+    d = np.log(dist[:, k - 1: k] / dist[:, 0:k-1])
+    d = d.sum(axis=1) / (k - 2)
+    # d = 1. / d
+    intdim_sample = d
+    return intdim_sample
+
+
 def intrinsic_dim_scale_interval(X, k1=10, k2=20):
     # remove duplicates in case you use bootstrapping
     X = pd.DataFrame(X).drop_duplicates().values
@@ -53,7 +68,7 @@ def intrinsic_dim_scale_interval(X, k1=10, k2=20):
         # I think this should be
         # changed to the mean of the inverses
         m = intrinsic_dim_sample_wise(X, k).mean()
-        intdim_k.append(m)
+        intdim_k.append(1/m)
     return intdim_k
 
 
