@@ -28,6 +28,7 @@ plt.hist(intdim_k_repeated.mean(axis=1))
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
 
 
@@ -45,19 +46,74 @@ def intrinsic_dim_sample_wise_old(X, k=5):
     return intdim_sample
 
 
-def intrinsic_dim_sample_wise(X, k=5):
-    neighb = NearestNeighbors(n_neighbors=k + 1).fit(X)
+def intrinsic_dim_sample_wise_parallel(X, k=5):
+    neighb = NearestNeighbors(n_neighbors=(k + 1)).fit(X)
     dist, ind = neighb.kneighbors(X)
     dist = dist[:, 1:]
     dist = dist[:, 0:k]
-    print(dist)
     assert dist.shape == (X.shape[0], k)
     assert np.all(dist > 0)
     d = np.log(dist[:, k - 1: k] / dist[:, 0:k-1])
-    d = d.sum(axis=1) / (k - 2)
+    d = d.sum(axis=1) / (k - 1)
+    # print(f'd shape is {d.shape}')
+    assert d.shape == (X.shape[0],)
+    d = np.mean(d)
+    d = 1. / d
+    intdim_sample = d
+    return intdim_sample
+
+
+def intrinsic_dim_sample_wise(X, k=5):
+    neighb = NearestNeighbors(n_neighbors=(k + 1)).fit(X)
+    dist, ind = neighb.kneighbors(X)
+    dist = dist[:, 1:]
+    dist = dist[:, 0:k]
+    assert dist.shape == (X.shape[0], k)
+    assert np.all(dist > 0)
+    d = np.log(dist[:, k - 1: k] / dist[:, 0:k-1])
+    assert d.shape == (X.shape[0], (k-1))
+    d = d.sum(axis=1) / (k - 1)
     # d = 1. / d
     intdim_sample = d
     return intdim_sample
+
+
+def test_dim_parallel():
+    test_data = np.random.rand(1000, 100)
+    intdim = []
+    for ii in range(5, 40, 2):
+        intdim.append(intrinsic_dim_sample_wise_parallel(test_data,
+                                                         k=ii))
+    intdim = np.array(intdim)
+    plt.plot(intdim)
+    plt.show()
+
+
+def test_dim_parallel_real_data():
+    a = np.load('CaProfiles.npz')
+    caData = np.reshape(a['caData'], (25000, 130))
+    caData_s = caData[3000:24000:5, :]
+    intdim = []
+    for ii in range(5, 40, 2):
+        intdim.append(intrinsic_dim_sample_wise_parallel(caData_s,
+                                                         k=ii))
+    intdim = np.array(intdim)
+    plt.plot(intdim)
+    plt.show()
+
+
+
+def intrinsic_dim_scale_interval_logscale(X, k1=10, k2=20, numSamples=100):
+    # remove duplicates in case you use bootstrapping
+    X = pd.DataFrame(X).drop_duplicates().values
+    intdim_k = []
+    k_values = np.logspace(np.log10(k1), np.log10(k2), num=numSamples)
+    for k in k_values:
+        # I think this should be
+        # changed to the mean of the inverses
+        m = intrinsic_dim_sample_wise(X, k).mean()
+        intdim_k.append(1/m)
+    return intdim_k
 
 
 def intrinsic_dim_scale_interval(X, k1=10, k2=20):
@@ -97,3 +153,8 @@ def repeated(func, X, nb_iter=100, random_state=None, verbose=0,
             raise ValueError('unknown mode : {}'.format(mode))
         results.append(func(Xr, **func_kw))
     return results
+
+
+if __name__ == "__main__":
+    test_dim_parallel()
+    test_dim_parallel_real_data()
